@@ -7439,27 +7439,27 @@ def progress():
 # CHATBOT
 # =========================================================
 
+
 @app.route("/chat", methods=["POST"])
 def chat():
-
     data = request.get_json(silent=True) or {}
 
-    message = str(
-        data.get("message", "")
-    ).strip()
-
-    language = str(
-        data.get("language", "Python")
-    ).strip()
-
+    message = str(data.get("message", "")).strip()
+    language = str(data.get("language", "Python")).strip()
 
     if not message:
-
         return jsonify({
             "success": False,
             "reply": "Please type a question."
         })
 
+    api_key = os.getenv("OPENAI_API_KEY")
+
+    if not api_key:
+        return jsonify({
+            "success": False,
+            "reply": "OpenAI API key is not configured."
+        })
 
     system_prompt = f"""
 You are an AI Coding Mentor.
@@ -7467,163 +7467,67 @@ You are an AI Coding Mentor.
 Programming language: {language}
 
 Answer the student's exact question.
-
 Use simple English.
 
 For programming questions:
 - Give a clear definition.
 - Explain briefly.
 - Give a simple example when useful.
-- If code is provided, identify the error and give corrected code.
+- If code is provided, identify errors and give corrected code.
 - Do not confuse programming languages.
 
-Keep normal answers concise but complete.
-Do not unnecessarily repeat information.
+Keep answers concise but complete.
 """
 
-
     try:
-
         response = requests.post(
-
-            "http://127.0.0.1:11434/api/chat",
-
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
             json={
-
-                "model": "llama3.2",
-
+                "model": "gpt-4o-mini",
                 "messages": [
-
                     {
                         "role": "system",
                         "content": system_prompt
                     },
-
                     {
                         "role": "user",
                         "content": message
                     }
-
                 ],
-
-                "stream": False,
-
-                "keep_alive": "10m",
-
-                "options": {
-
-                    "num_predict": 300,
-
-                    "num_ctx": 1024,
-
-                    "temperature": 0.3
-
-                }
-
+                "temperature": 0.3,
+                "max_tokens": 500
             },
-
-            timeout=120
-
+            timeout=60
         )
 
-
-        if response.status_code != 200:
-
-            print(
-                "Ollama HTTP error:",
-                response.status_code,
-                response.text
-            )
-
-            return jsonify({
-
-                "success": False,
-
-                "reply":
-                    "AI Mentor could not process the question."
-
-            })
-
-
+        response.raise_for_status()
         result = response.json()
 
-
-        reply = (
-            result
-            .get("message", {})
-            .get("content", "")
-            .strip()
-        )
-
-
-        if not reply:
-
-            return jsonify({
-
-                "success": False,
-
-                "reply":
-                    "AI Mentor returned an empty response."
-
-            })
-
+        reply = result["choices"][0]["message"]["content"].strip()
 
         return jsonify({
-
             "success": True,
-
             "reply": reply
-
         })
 
-
-    except requests.exceptions.Timeout:
-
-        print(
-            "Ollama request timed out."
-        )
-
+    except requests.exceptions.RequestException as e:
+        print("OpenAI API error:", repr(e))
         return jsonify({
-
             "success": False,
-
-            "reply":
-                "AI Mentor took too long to respond. Please try again."
-
-        })
-
-
-    except requests.exceptions.ConnectionError:
-
-        print(
-            "Ollama connection error."
-        )
-
-        return jsonify({
-
-            "success": False,
-
-            "reply":
-                "Ollama is not connected. Please start Ollama."
-
-        })
-
+            "reply": "AI Mentor could not connect. Please try again."
+        }), 500
 
     except Exception as e:
-
-        print(
-            "Ollama error:",
-            repr(e)
-        )
-
+        print("Chat error:", repr(e))
         return jsonify({
-
             "success": False,
+            "reply": "AI Mentor could not process this question."
+        }), 500
 
-            "reply":
-                "AI Mentor could not process this question."
-
-        })
 # =========================================================
 # LOGOUT
 # =========================================================
