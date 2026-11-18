@@ -7440,6 +7440,7 @@ def progress():
 # =========================================================
 
 
+
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.get_json(silent=True) or {}
@@ -7453,12 +7454,12 @@ def chat():
             "reply": "Please type a question."
         })
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:
         return jsonify({
             "success": False,
-            "reply": "OpenAI API key is not configured."
+            "reply": "Gemini API key is not configured."
         })
 
     system_prompt = f"""
@@ -7481,52 +7482,88 @@ Keep answers concise but complete.
 
     try:
         response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
             headers={
-                "Authorization": f"Bearer {api_key}",
+                "x-goog-api-key": api_key,
                 "Content-Type": "application/json"
             },
             json={
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
+                "system_instruction": {
+                    "parts": [
+                        {"text": system_prompt}
+                    ]
+                },
+                "contents": [
                     {
                         "role": "user",
-                        "content": message
+                        "parts": [
+                            {"text": message}
+                        ]
                     }
                 ],
-                "temperature": 0.3,
-                "max_tokens": 500
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "maxOutputTokens": 500
+                }
             },
             timeout=60
         )
 
-        response.raise_for_status()
+        if response.status_code != 200:
+            print("Gemini API status:", response.status_code)
+            print("Gemini API error:", response.text[:2000])
+
+            return jsonify({
+                "success": False,
+                "reply": "Gemini AI could not respond. Please check the server logs."
+            })
+
         result = response.json()
 
-        reply = result["choices"][0]["message"]["content"].strip()
+        parts = (
+            result.get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [])
+        )
+
+        reply = "\n".join(
+            part.get("text", "")
+            for part in parts
+            if part.get("text")
+        ).strip()
+
+        if not reply:
+            reply = "Sorry, I could not generate an answer. Please try again."
 
         return jsonify({
             "success": True,
             "reply": reply
         })
 
-    except requests.exceptions.RequestException as e:
-        print("OpenAI API error:", repr(e))
+    except requests.exceptions.Timeout:
+        print("Gemini API timeout")
+
         return jsonify({
             "success": False,
-            "reply": "AI Mentor could not connect. Please try again."
-        }), 500
+            "reply": "AI Mentor is taking too long. Please try again."
+        })
+
+    except requests.exceptions.RequestException as e:
+        print("Gemini connection error:", repr(e))
+
+        return jsonify({
+            "success": False,
+            "reply": "Unable to connect to Gemini AI. Please try again."
+        })
 
     except Exception as e:
-        print("Chat error:", repr(e))
+        print("Gemini chat error:", repr(e))
+
         return jsonify({
             "success": False,
             "reply": "AI Mentor could not process this question."
-        }), 500
+        })
+
 
 # =========================================================
 # LOGOUT
