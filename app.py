@@ -6145,9 +6145,12 @@ def analyze():
         except Exception as e:
             errors.append(f"Python analysis error: {str(e)}")
 
+    
     # ---------------------------------------------------------
-    # STEP 2: Basic checks for other languages
+    # STEP 2: Basic checks and C/C++ compiler check
     # ---------------------------------------------------------
+    runtime_error = ""
+
     if language in ["C", "C++"]:
         compact = re.sub(r"\s+", "", code)
 
@@ -6162,6 +6165,7 @@ def analyze():
             for line in code.splitlines()
             if line.strip() and not line.strip().startswith("//")
         ]
+
         if meaningful_lines and any(
             line.startswith(("printf(", "scanf(", "return ", "int ", "float ",
                              "double ", "char ", "cout", "cin"))
@@ -6169,6 +6173,55 @@ def analyze():
             for line in meaningful_lines
         ):
             hints.append("Check whether the statement should end with a semicolon.")
+
+        temp_dir = None
+        try:
+            temp_dir = Path(tempfile.mkdtemp(prefix="ai_analysis_"))
+
+            if language == "C":
+                source_file = temp_dir / "main.c"
+                compiler = "gcc"
+            else:
+                source_file = temp_dir / "main.cpp"
+                compiler = "g++"
+
+            executable = temp_dir / "main.exe"
+            source_file.write_text(code, encoding="utf-8")
+
+            if shutil.which(compiler) is None:
+                errors.append(f"{compiler} is not available in PATH.")
+            else:
+                completed = subprocess.run(
+                    [compiler, str(source_file), "-o", str(executable)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    cwd=str(temp_dir)
+                )
+
+                if completed.returncode != 0:
+                    compiler_error = (
+                        completed.stderr or completed.stdout or "Compilation failed."
+                    ).strip()
+
+                    runtime_error = compiler_error
+                    errors.append(
+                        f"{language} compilation error: {compiler_error}"
+                    )
+
+        except subprocess.TimeoutExpired:
+            runtime_error = f"{language} compilation timed out."
+            errors.append(runtime_error)
+
+        except Exception as e:
+            runtime_error = str(e)
+            errors.append(
+                f"{language} compiler check failed: {str(e)}"
+            )
+
+        finally:
+            if temp_dir:
+                shutil.rmtree(temp_dir, ignore_errors=True)
 
     elif language == "Java":
         if "class " not in code:
@@ -6189,89 +6242,11 @@ def analyze():
     elif language == "C#":
         if "class " not in code and "struct " not in code:
             errors.append("No C# class or struct was detected.")
-            
-        try:
-            temp_dir = Path(tempfile.mkdtemp(prefix="ai_analysis_"))
 
-            if language == "C":
-                source_file = temp_dir / "main.c"
-                executable = temp_dir / "main.exe"
-                compiler = "gcc"
-            else:
-                source_file = temp_dir / "main.cpp"
-                executable = temp_dir / "main.exe"
-                compiler = "g++"
-
-            source_file.write_text(code, encoding="utf-8")
-
-            if shutil.which(compiler) is None:
-                errors.append(
-                    f"{compiler} is not available in PATH."
-                )
-            else:
-                completed = subprocess.run(
-                    [
-                        compiler,
-                        str(source_file),
-                        "-o",
-                        str(executable)
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=10,
-                    cwd=str(temp_dir)
-                )
-
-                if completed.returncode != 0:
-                    compiler_error = (
-                        completed.stderr or
-                        completed.stdout or
-                        "Compilation failed."
-                    ).strip()
-
-                    runtime_error = compiler_error
-
-                    errors.append(
-                        f"{language} compilation error: {compiler_error}"
-                    )
-
-        except subprocess.TimeoutExpired:
-            runtime_error = (
-                f"{language} compilation timed out."
-            )
-            errors.append(runtime_error)
-
-        except Exception as e:
-            runtime_error = str(e)
-            errors.append(
-                f"{language} compiler check failed: {str(e)}"
-            )
-
-        finally:
-            if temp_dir:
-                shutil.rmtree(
-                    temp_dir,
-                    ignore_errors=True
-                )
-
-    elif language == "Python":
-        try:
-            compile(code, "<student_code>", "exec")
-        except SyntaxError as e:
-            line = e.lineno or "unknown"
-            message = e.msg or "Invalid syntax."
-            errors.append(
-                f"Syntax error on line {line}: {message}"
-            )
-            hints.append(
-                "Check brackets, quotes, colons and indentation around the reported line."
-            )
 
     # ---------------------------------------------------------
     # STEP 3: REAL RUNTIME CHECK FOR PYTHON
     # ---------------------------------------------------------
-    runtime_error = ""
-
     if language == "Python" and not errors:
         temp_path = None
         try:
@@ -6296,7 +6271,8 @@ def analyze():
                 runtime_error = (completed.stderr or "").strip()
                 if runtime_error:
                     errors.append(
-                        "Runtime error detected: " + runtime_error.splitlines()[-1]
+                        "Runtime error detected: " +
+                        runtime_error.splitlines()[-1]
                     )
 
         except subprocess.TimeoutExpired:
@@ -6310,7 +6286,7 @@ def analyze():
                 except OSError:
                     pass
 
-   
+
     # ---------------------------------------------------------
     # STEP 4: GEMINI AI CODE REVIEW
     # ---------------------------------------------------------
