@@ -6315,6 +6315,41 @@ def analyze():
     # STEP 4: GEMINI AI CODE REVIEW
     # ---------------------------------------------------------
 
+    prompt = f"""
+You are an expert programming teacher and code reviewer.
+
+Analyze the student's complete {language} code.
+
+Rules:
+- Find ONLY real errors or clear bugs.
+- If the code is correct, errors must be [].
+- Explain exactly why an error occurs.
+- If an error exists, provide corrected complete code.
+- Preserve the original purpose and logic.
+- Do not change the programming language.
+- Do not invent libraries, APIs, variables, or requirements.
+- Return JSON only.
+
+Return exactly:
+{{
+  "errors": ["real error and why it happens"],
+  "hints": ["specific clue for fixing the error"],
+  "suggestions": ["optional improvement"],
+  "corrected_code": "complete corrected code"
+}}
+
+Runtime execution information:
+{runtime_error or "No runtime error was observed."}
+
+Student code:
+---START CODE---
+{code}
+---END CODE---
+"""
+
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+
+
     gemini_api_key = os.getenv("GEMINI_API_KEY")
 
     if not gemini_api_key:
