@@ -6323,6 +6323,8 @@ Analyze the student's complete {language} code.
 Rules:
 - Find ONLY real errors or clear bugs.
 - If the code is correct, errors must be [].
+- If the code is correct, provide a clear explanation in suggestions confirming that the code is correct.
+- Always return at least one useful suggestion or explanation.
 - Explain exactly why an error occurs.
 - If an error exists, provide corrected complete code.
 - Preserve the original purpose and logic.
