@@ -3561,6 +3561,7 @@ hr {
      EDITOR
 ===================================================== -->
 
+
 <section id="editorPage" class="hidden page">
 
     <div class="container">
@@ -3570,20 +3571,21 @@ hr {
         </h1>
 
         <p style="color:#aaa;margin-top:10px">
-
             Language:
             <b id="selectedLanguage">
                 Python
             </b>
-
         </p>
 
         <div style="margin:15px 0 20px 0;">
             <label for="editorLanguage" style="display:block;color:white;font-weight:600;margin-bottom:8px;">
                 Select Programming Language
             </label>
-            <select id="editorLanguage" onchange="changeEditorLanguage(this.value)"
+
+            <select id="editorLanguage"
+                    onchange="changeEditorLanguage(this.value)"
                     style="width:100%;max-width:360px;padding:12px 14px;border-radius:10px;background:#111827;color:white;border:1px solid #6d28d9;font-size:16px;outline:none;">
+
                 <option value="Python">Python</option>
                 <option value="C">C</option>
                 <option value="C++">C++</option>
@@ -3599,11 +3601,11 @@ hr {
                 <option value="TypeScript">TypeScript</option>
                 <option value="Rust">Rust</option>
                 <option value="Dart">Dart</option>
+
             </select>
         </div>
 
         <div class="editor-layout">
-
 
             <div class="glass">
 
@@ -3612,17 +3614,16 @@ hr {
                 </h3>
 
                 <textarea
-    id="codeEditor"
-    placeholder="Write your code here..."
-    style="width:100%; min-height:450px; resize:vertical;"
-></textarea>
-
+                    id="codeEditor"
+                    placeholder="Write your code here..."
+                    style="width:100%; min-height:450px; resize:vertical;"
+                ></textarea>
 
                 <div class="editor-buttons">
 
                     <button
                         class="btn"
-                        onclick="runCode()"
+                        onclick="window.runCode()"
                     >
                         ▶ Run Code
                     </button>
@@ -3644,8 +3645,18 @@ hr {
 
                 </div>
 
-            </div>
+                <!-- RUN CODE OUTPUT BOX -->
+                <div
+                    id="codeOutput"
+                    class="result"
+                    style="min-height:100px; max-height:300px; overflow-y:auto; width:100%; margin-top:15px;"
+                >
+                    <div class="message hint">
+                        Run your code to see the output here.
+                    </div>
+                </div>
 
+            </div>
 
             <div class="glass">
 
@@ -3653,18 +3664,15 @@ hr {
                     🤖 AI Mentor Feedback
                 </h3>
 
-
-               <div
-    id="analysisResult"
-    class="result"
-    style="min-height:350px; max-height:600px; overflow-y:auto; width:100%;"
->
+                <div
+                    id="analysisResult"
+                    class="result"
+                    style="min-height:350px; max-height:600px; overflow-y:auto; width:100%;"
+                >
 
                     <div class="message hint">
-
                         Write your code and click
                         Analyze My Code.
-
                     </div>
 
                 </div>
@@ -3673,16 +3681,13 @@ hr {
 
         </div>
 
-
         <br>
 
         <button
             class="btn"
             onclick="backDashboard()"
         >
-
             ← Dashboard
-
         </button>
 
     </div>
@@ -6326,6 +6331,7 @@ Student code:
 """
 
     gemini_api_key = os.getenv("GEMINI_API_KEY")
+    print("GEMINI KEY DETECTED:", bool(gemini_api_key))
 
 
     if not gemini_api_key:
@@ -6377,7 +6383,7 @@ Student code:
             .get("text", "")
             .strip()
         )
-
+        print("GEMINI RAW RESPONSE:", result)
         raw = re.sub(
             r"^\s*```(?:json)?\s*|\s*```\s*$",
             "",

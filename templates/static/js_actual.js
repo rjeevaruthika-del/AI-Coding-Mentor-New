@@ -1107,6 +1107,7 @@ window.runProgram = window.runCode;
 // Backend endpoint: /analyze
 // ============================================
 
+
 window.analyzeCode = async function () {
     const code = window.getEditorCode();
     const language = window.getSelectedLanguage();
@@ -1122,10 +1123,7 @@ window.analyzeCode = async function () {
 
     if (!code.trim()) {
         if (resultBox) {
-            resultBox.textContent =
-                "Please enter some code before asking AI to analyze it.";
-        } else {
-            alert("Please enter some code first.");
+            resultBox.textContent = "Please enter some code first.";
         }
         return;
     }
@@ -1153,25 +1151,45 @@ window.analyzeCode = async function () {
 
         const data = await response.json();
 
-        if (!response.ok) {
+        if (!response.ok || data.success !== true) {
             throw new Error(
-                data.error ||
-                data.message ||
-                "AI analysis failed."
+                data.message || data.error || "AI analysis failed."
             );
         }
 
-        const analysis =
-            data.analysis ??
-            data.explanation ??
-            data.result ??
-            data.message ??
-            data.feedback ??
-            "Analysis completed, but no explanation was returned.";
+        const output = [];
+
+        output.push("🤖 AI MENTOR FEEDBACK");
+        output.push("");
+
+        if (Array.isArray(data.errors) && data.errors.length) {
+            output.push("❌ ERRORS:");
+            data.errors.forEach(item => output.push("• " + item));
+            output.push("");
+        } else {
+            output.push("✅ No errors detected.");
+            output.push("");
+        }
+
+        if (Array.isArray(data.hints) && data.hints.length) {
+            output.push("💡 HINTS:");
+            data.hints.forEach(item => output.push("• " + item));
+            output.push("");
+        }
+
+        if (Array.isArray(data.suggestions) && data.suggestions.length) {
+            output.push("📘 EXPLANATION & SUGGESTIONS:");
+            data.suggestions.forEach(item => output.push("• " + item));
+            output.push("");
+        }
+
+        if (data.corrected_code) {
+            output.push("🛠️ CORRECTED CODE:");
+            output.push(data.corrected_code);
+        }
 
         if (resultBox) {
-            // textContent keeps the returned text safe to display.
-            resultBox.textContent = String(analysis);
+            resultBox.textContent = output.join("\n");
         }
 
     } catch (error) {
@@ -1179,11 +1197,9 @@ window.analyzeCode = async function () {
 
         if (resultBox) {
             resultBox.textContent =
-                "Unable to analyze your code: " +
-                (error.message || "Please try again.");
-        } else {
-            alert(error.message || "AI analysis failed.");
+                "Unable to analyze your code: " + error.message;
         }
+
     } finally {
         if (analyzeButton) {
             analyzeButton.disabled = false;
@@ -1191,6 +1207,7 @@ window.analyzeCode = async function () {
         }
     }
 };
+
 
 
 // ============================================
