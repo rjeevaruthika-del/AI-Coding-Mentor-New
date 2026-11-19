@@ -6310,70 +6310,60 @@ def analyze():
                 except OSError:
                     pass
 
+   
     # ---------------------------------------------------------
-    # STEP 4: AI CODE REVIEW
+    # STEP 4: GEMINI AI CODE REVIEW
     # ---------------------------------------------------------
-    prompt = f"""
-You are an expert programming teacher and code reviewer.
 
-Analyze the student's complete {language} code.
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
 
-Rules:
-- Find ONLY real errors or clear bugs.
-- If the code is correct, errors must be [].
-- Explain exactly why an error occurs.
-- If an error exists, provide corrected complete code.
-- Preserve the original purpose and logic.
-- Do not change the programming language.
-- Do not invent libraries, APIs, variables, or requirements.
-- Return JSON only.
-
-Return exactly:
-{{
-  "errors": ["real error and why it happens"],
-  "hints": ["specific clue for fixing the error"],
-  "suggestions": ["optional improvement"],
-  "corrected_code": "complete corrected code"
-}}
-
-Runtime execution information:
-{runtime_error or "No runtime error was observed."}
-
-Student code:
----START CODE---
-{code}
----END CODE---
-"""
+    if not gemini_api_key:
+        return jsonify({
+            "success": False,
+            "message": "Gemini API key is not configured."
+        }), 500
 
     try:
         response = requests.post(
-            "http://127.0.0.1:11434/api/chat",
-            json={
-                "model": "llama3.2",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a careful programming code reviewer. Return valid JSON only."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "stream": False,
-                "keep_alive": "10m"
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": gemini_api_key
             },
-            timeout=60
+            json={
+                "system_instruction": {
+                    "parts": [{
+                        "text": "You are a careful programming code reviewer. Return valid JSON only."
+                    }]
+                },
+                "contents": [{
+                    "role": "user",
+                    "parts": [{"text": prompt}]
+                }],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "responseMimeType": "application/json"
+                }
+            },
+            timeout=90
         )
 
-        response.raise_for_status()
+        if response.status_code != 200:
+            print("Gemini Analysis Status:", response.status_code)
+            print("Gemini Analysis Error:", response.text)
+
+            return jsonify({
+                "success": False,
+                "message": "Gemini AI code analysis failed. Please try again."
+            }), 500
 
         result = response.json()
 
         raw = (
-            result
-            .get("message", {})
-            .get("content", "")
+            result.get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [{}])[0]
+            .get("text", "")
             .strip()
         )
 
@@ -6384,37 +6374,33 @@ Student code:
             flags=re.IGNORECASE
         ).strip()
 
-        json_start = raw.find("{")
-        json_end = raw.rfind("}")
+        ai_result = json.loads(raw)
 
-        if json_start >= 0 and json_end > json_start:
-            json_text = raw[json_start:json_end + 1]
-            ai_result = json.loads(json_text)
+        if not isinstance(ai_result, dict):
+            raise ValueError("Invalid AI response format")
 
-            if isinstance(ai_result, dict):
+        ai_errors = ai_result.get("errors", [])
+        ai_hints = ai_result.get("hints", [])
+        ai_suggestions = ai_result.get("suggestions", [])
+        ai_corrected = ai_result.get("corrected_code", "")
 
-                ai_errors = ai_result.get("errors", [])
-                ai_hints = ai_result.get("hints", [])
-                ai_suggestions = ai_result.get("suggestions", [])
-                ai_corrected = ai_result.get("corrected_code", "")
+        if isinstance(ai_errors, list):
+            for item in ai_errors:
+                if str(item).strip():
+                    errors.append(str(item).strip())
 
-                if isinstance(ai_errors, list):
-                    for item in ai_errors:
-                        if str(item).strip():
-                            errors.append(str(item).strip())
+        if isinstance(ai_hints, list):
+            for item in ai_hints:
+                if str(item).strip():
+                    hints.append(str(item).strip())
 
-                if isinstance(ai_hints, list):
-                    for item in ai_hints:
-                        if str(item).strip():
-                            hints.append(str(item).strip())
+        if isinstance(ai_suggestions, list):
+            for item in ai_suggestions:
+                if str(item).strip():
+                    suggestions.append(str(item).strip())
 
-                if isinstance(ai_suggestions, list):
-                    for item in ai_suggestions:
-                        if str(item).strip():
-                            suggestions.append(str(item).strip())
-
-                if ai_corrected and str(ai_corrected).strip():
-                    corrected_code = str(ai_corrected).strip()
+        if ai_corrected and str(ai_corrected).strip():
+            corrected_code = str(ai_corrected).strip()
 
         errors = list(dict.fromkeys(errors))
         hints = list(dict.fromkeys(hints))
@@ -6432,53 +6418,21 @@ Student code:
             "ai_analysis": True
         })
 
-    except json.JSONDecodeError:
-        return jsonify({
-            "success": True,
-            "errors": list(dict.fromkeys(errors)),
-            "hints": list(dict.fromkeys(hints)),
-            "suggestions": list(dict.fromkeys(suggestions)),
-            "corrected_code": "",
-            "ai_analysis": False
-        })
+    except requests.exceptions.RequestException as e:
+        print("Gemini Analysis Connection Error:", repr(e))
 
-    except requests.exceptions.ConnectionError:
         return jsonify({
             "success": False,
-            "message": "Ollama is not running. Please start Ollama and try again."
+            "message": "Gemini AI could not connect. Please try again."
         }), 500
 
     except Exception as e:
-        print("Ollama code analysis error:", repr(e))
+        print("Gemini Code Analysis Error:", repr(e))
 
         return jsonify({
             "success": False,
-            "message": "Ollama AI code analysis failed. Check the Flask terminal."
+            "message": "AI code analysis failed. Please check server logs."
         }), 500
-
-    # ---------------------------------------------------------
-    # STEP 4: AI unavailable fallback
-    # ---------------------------------------------------------
-    if not api_key:
-        suggestions.append(
-           "Ollama AI review is not connected. Please make sure Ollama is running."
-        )
-    elif OpenAI is None:
-        suggestions.append(
-            "The OpenAI Python package is not available. Run: python -m pip install openai"
-        )
-
-    if not errors and not hints and not suggestions:
-        suggestions.append("No syntax problem was detected by the basic analyzer.")
-
-    return jsonify({
-        "success": True,
-        "errors": list(dict.fromkeys(errors)),
-        "hints": list(dict.fromkeys(hints)),
-        "suggestions": list(dict.fromkeys(suggestions)),
-        "corrected_code": "",
-        "ai_analysis": False
-    })
 
 
 # =========================================================
