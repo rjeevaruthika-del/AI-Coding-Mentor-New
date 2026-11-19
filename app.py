@@ -7482,7 +7482,7 @@ Keep answers concise but complete.
 
     try:
         response = requests.post(
-         "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent",
+         "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
             headers={
                 "x-goog-api-key": api_key,
                 "Content-Type": "application/json"
