@@ -6352,8 +6352,6 @@ Student code:
     gemini_api_key = os.getenv("GEMINI_API_KEY")
 
 
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
-
     if not gemini_api_key:
         return jsonify({
             "success": False,
